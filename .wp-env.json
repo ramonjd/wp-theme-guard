@@ -1,0 +1,9 @@
+{
+	"core": "WordPress/WordPress#master",
+	"phpVersion": "8.1",
+	"port": 8890,
+	"testsPort": 8891,
+	"plugins": [
+		"."
+	]
+}
