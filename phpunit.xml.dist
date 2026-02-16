@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+<phpunit
+	bootstrap="tests/bootstrap.php"
+	backupGlobals="false"
+	colors="true"
+	beStrictAboutTestsThatDoNotTestAnything="true"
+	beStrictAboutOutputDuringTests="true"
+>
+	<testsuites>
+		<testsuite name="wp-theme-guard">
+			<directory suffix=".php">./tests</directory>
+			<exclude>./tests/bootstrap.php</exclude>
+		</testsuite>
+	</testsuites>
+</phpunit>

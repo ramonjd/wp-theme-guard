@@ -1,0 +1,10 @@
+{
+	"name": "wordpress/wp-theme-guard",
+	"description": "Validates AI-generated content against your site's design system and block rules via the Abilities API.",
+	"type": "wordpress-plugin",
+	"license": "GPL-2.0-or-later",
+	"require-dev": {
+		"phpunit/phpunit": "^9.6",
+		"yoast/phpunit-polyfills": "^2.0"
+	}
+}

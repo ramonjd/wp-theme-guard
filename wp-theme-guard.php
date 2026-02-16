@@ -3,7 +3,7 @@
  * Plugin Name: WP Theme Guard
  * Description: Validates AI-generated content against your site's design system and block rules via the Abilities API.
  * Version: 0.1.0
- * Requires at least: 7.0
+ * Requires at least: 6.7
  * Requires PHP: 8.1
  * Author: The WordPress Contributors
  * License: GPL-2.0-or-later

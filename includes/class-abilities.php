@@ -23,6 +23,11 @@ class WP_Theme_Guard_Abilities {
 			'label'       => __( 'Validation', 'wp-theme-guard' ),
 			'description' => __( 'Abilities for validating content against site rules.', 'wp-theme-guard' ),
 		) );
+
+		wp_register_ability_category( 'data-retrieval', array(
+			'label'       => __( 'Data Retrieval', 'wp-theme-guard' ),
+			'description' => __( 'Abilities for retrieving site configuration and constraints.', 'wp-theme-guard' ),
+		) );
 	}
 
 	/**
