@@ -2,41 +2,59 @@
 
 class Test_Style_Validator extends WP_UnitTestCase {
 
-	public function test_valid_palette_color() {
+	/**
+	 * Layer 2: property-validity
+	 */
+	public function test_valid_property_paths_pass() {
 		$result = WP_Theme_Guard_Style_Validator::execute( array(
 			'styles' => array(
-				'color' => array( 'background' => 'var(--wp--preset--color--black)' ),
+				'color'      => array( 'background' => '#000000' ),
+				'typography' => array( 'fontSize' => '16px' ),
+				'spacing'    => array( 'padding' => array( 'top' => '10px' ) ),
+				'border'     => array( 'color' => '#333333' ),
+				'shadow'     => '0 1px 2px rgba(0,0,0,.1)',
+				'dimensions' => array( 'minHeight' => '100px' ),
 			),
 		) );
 
-		$this->assertTrue( $result['valid'] );
-		$this->assertEmpty( $result['errors'] );
+		// No property-validity errors expected.
+		$property_errors = array_filter(
+			$result['errors'],
+			fn( $e ) => 'property-validity' === $e['layer']
+		);
+		$this->assertEmpty( $property_errors );
 	}
 
-	public function test_custom_color_with_custom_allowed() {
+	public function test_invalid_property_paths_produce_errors() {
 		$result = WP_Theme_Guard_Style_Validator::execute( array(
 			'styles' => array(
-				'color' => array( 'background' => '#abcdef' ),
+				'color' => array( 'opacity' => '0.5' ),
+				'fake'  => array( 'whatever' => 'value' ),
 			),
 		) );
 
-		$this->assertTrue( $result['valid'] );
-		$this->assertEmpty( $result['errors'] );
-		$this->assertNotEmpty( $result['warnings'] );
-		$this->assertSame( 'color.background', $result['warnings'][0]['property'] );
+		$this->assertFalse( $result['valid'] );
+
+		$property_errors = array_filter(
+			$result['errors'],
+			fn( $e ) => 'property-validity' === $e['layer']
+		);
+		$this->assertCount( 2, $property_errors );
 	}
 
-	public function test_preset_reference_is_valid() {
+	public function test_nested_border_sub_properties_validated() {
 		$result = WP_Theme_Guard_Style_Validator::execute( array(
 			'styles' => array(
-				'color' => array(
-					'background' => 'var(--wp--preset--color--vivid-red)',
-					'text'       => 'var(--wp--preset--color--white)',
+				'border' => array(
+					'top' => array( 'color' => '#333333' ),
 				),
 			),
 		) );
 
-		$this->assertTrue( $result['valid'] );
-		$this->assertEmpty( $result['errors'] );
+		$property_errors = array_filter(
+			$result['errors'],
+			fn( $e ) => 'property-validity' === $e['layer']
+		);
+		$this->assertEmpty( $property_errors );
 	}
 }
