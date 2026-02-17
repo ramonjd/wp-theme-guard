@@ -57,4 +57,77 @@ class Test_Style_Validator extends WP_UnitTestCase {
 		);
 		$this->assertEmpty( $property_errors );
 	}
+
+	/**
+	 * Layer 3: value-sanitization
+	 */
+	public function test_safe_css_values_pass() {
+		$result = WP_Theme_Guard_Style_Validator::execute( array(
+			'styles' => array(
+				'color'      => array( 'background' => '#ff0000' ),
+				'typography' => array( 'fontSize' => 'clamp(1rem, 2vw, 2rem)' ),
+				'spacing'    => array( 'padding' => array( 'top' => '10px' ) ),
+			),
+		) );
+
+		$sanitization_errors = array_filter(
+			$result['errors'],
+			fn( $e ) => 'value-sanitization' === $e['layer']
+		);
+		$this->assertEmpty( $sanitization_errors );
+	}
+
+	public function test_unsafe_css_values_produce_errors() {
+		$result = WP_Theme_Guard_Style_Validator::execute( array(
+			'styles' => array(
+				'color' => array(
+					'background' => 'expression(alert(1))',
+					'text'       => 'var(--wp--preset--color--black)',
+				),
+			),
+		) );
+
+		$sanitization_errors = array_filter(
+			$result['errors'],
+			fn( $e ) => 'value-sanitization' === $e['layer']
+		);
+		$this->assertCount( 1, $sanitization_errors );
+
+		$error = array_values( $sanitization_errors )[0];
+		$this->assertSame( 'color.background', $error['property'] );
+	}
+
+	public function test_empty_values_produce_errors() {
+		$result = WP_Theme_Guard_Style_Validator::execute( array(
+			'styles' => array(
+				'color' => array( 'background' => '' ),
+			),
+		) );
+
+		$sanitization_errors = array_filter(
+			$result['errors'],
+			fn( $e ) => 'value-sanitization' === $e['layer']
+		);
+		$this->assertCount( 1, $sanitization_errors );
+	}
+
+	public function test_preset_references_always_pass_sanitization() {
+		$result = WP_Theme_Guard_Style_Validator::execute( array(
+			'styles' => array(
+				'color'      => array(
+					'background' => 'var(--wp--preset--color--vivid-red)',
+					'text'       => 'var(--wp--preset--color--white)',
+				),
+				'typography' => array(
+					'fontSize' => 'var(--wp--preset--font-size--medium)',
+				),
+			),
+		) );
+
+		$sanitization_errors = array_filter(
+			$result['errors'],
+			fn( $e ) => 'value-sanitization' === $e['layer']
+		);
+		$this->assertEmpty( $sanitization_errors );
+	}
 }
