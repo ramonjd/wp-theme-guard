@@ -17,6 +17,24 @@ class Test_Plugin_Integration extends WP_UnitTestCase {
 		) );
 
 		$this->assertTrue( $result['valid'] );
+		$this->assertArrayHasKey( 'errors', $result );
+		$this->assertArrayHasKey( 'warnings', $result );
+		$this->assertEmpty( $result['errors'] );
+	}
+
+	public function test_validate_styles_error_includes_layer() {
+		$result = WP_Theme_Guard_Style_Validator::execute( array(
+			'styles' => array(
+				'fake' => array( 'invalid' => 'value' ),
+			),
+		) );
+
+		$this->assertFalse( $result['valid'] );
+		$this->assertNotEmpty( $result['errors'] );
+
+		foreach ( $result['errors'] as $error ) {
+			$this->assertArrayHasKey( 'layer', $error );
+		}
 	}
 
 	public function test_validate_blocks_end_to_end() {
