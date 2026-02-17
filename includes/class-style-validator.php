@@ -4,6 +4,12 @@ declare( strict_types = 1 );
 
 class WP_Theme_Guard_Style_Validator {
 
+	private static ?array $test_settings = null;
+
+	public static function set_test_settings( ?array $override ): void {
+		self::$test_settings = $override;
+	}
+
 	/**
 	 * Map from style paths to their settings toggle paths.
 	 * Only entries that don't follow the default convention (category.property -> settings.category.property).
@@ -376,11 +382,10 @@ class WP_Theme_Guard_Style_Validator {
 	// --- Helpers ---
 
 	private static function get_merged_settings(): array {
-		static $settings = null;
-		if ( null === $settings ) {
-			$settings = WP_Theme_JSON_Resolver::get_merged_data()->get_settings();
+		if ( null !== self::$test_settings ) {
+			return self::$test_settings;
 		}
-		return $settings;
+		return WP_Theme_JSON_Resolver::get_merged_data()->get_settings();
 	}
 
 	private static function is_preset_reference( string $value ): bool {

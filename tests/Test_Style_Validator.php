@@ -130,4 +130,112 @@ class Test_Style_Validator extends WP_UnitTestCase {
 		);
 		$this->assertEmpty( $sanitization_errors );
 	}
+
+	/**
+	 * Layer 4: theme-settings
+	 */
+	public function test_disabled_setting_produces_error() {
+		WP_Theme_Guard_Style_Validator::set_test_settings( array(
+			'color' => array(
+				'text'   => false,
+				'custom' => true,
+			),
+		) );
+
+		$result = WP_Theme_Guard_Style_Validator::execute( array(
+			'styles' => array(
+				'color' => array( 'text' => '#333333' ),
+			),
+		) );
+
+		WP_Theme_Guard_Style_Validator::set_test_settings( null );
+
+		$settings_errors = array_filter(
+			$result['errors'],
+			fn( $e ) => 'theme-settings' === $e['layer']
+		);
+		$this->assertCount( 1, $settings_errors );
+	}
+
+	public function test_enabled_setting_passes() {
+		WP_Theme_Guard_Style_Validator::set_test_settings( array(
+			'color' => array(
+				'text'   => true,
+				'custom' => true,
+			),
+		) );
+
+		$result = WP_Theme_Guard_Style_Validator::execute( array(
+			'styles' => array(
+				'color' => array( 'text' => '#333333' ),
+			),
+		) );
+
+		WP_Theme_Guard_Style_Validator::set_test_settings( null );
+
+		$settings_errors = array_filter(
+			$result['errors'],
+			fn( $e ) => 'theme-settings' === $e['layer']
+		);
+		$this->assertEmpty( $settings_errors );
+	}
+
+	public function test_custom_values_blocked_but_presets_allowed() {
+		WP_Theme_Guard_Style_Validator::set_test_settings( array(
+			'color' => array(
+				'background' => true,
+				'custom'     => false,
+			),
+		) );
+
+		$result_custom = WP_Theme_Guard_Style_Validator::execute( array(
+			'styles' => array(
+				'color' => array( 'background' => '#ff0000' ),
+			),
+		) );
+
+		$result_preset = WP_Theme_Guard_Style_Validator::execute( array(
+			'styles' => array(
+				'color' => array( 'background' => 'var(--wp--preset--color--vivid-red)' ),
+			),
+		) );
+
+		WP_Theme_Guard_Style_Validator::set_test_settings( null );
+
+		// Custom value should error.
+		$custom_errors = array_filter(
+			$result_custom['errors'],
+			fn( $e ) => 'theme-settings' === $e['layer']
+		);
+		$this->assertCount( 1, $custom_errors );
+
+		// Preset reference should pass.
+		$preset_errors = array_filter(
+			$result_preset['errors'],
+			fn( $e ) => 'theme-settings' === $e['layer']
+		);
+		$this->assertEmpty( $preset_errors );
+	}
+
+	public function test_custom_font_size_blocked() {
+		WP_Theme_Guard_Style_Validator::set_test_settings( array(
+			'typography' => array(
+				'customFontSize' => false,
+			),
+		) );
+
+		$result = WP_Theme_Guard_Style_Validator::execute( array(
+			'styles' => array(
+				'typography' => array( 'fontSize' => '16px' ),
+			),
+		) );
+
+		WP_Theme_Guard_Style_Validator::set_test_settings( null );
+
+		$settings_errors = array_filter(
+			$result['errors'],
+			fn( $e ) => 'theme-settings' === $e['layer']
+		);
+		$this->assertCount( 1, $settings_errors );
+	}
 }
