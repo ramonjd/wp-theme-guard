@@ -238,4 +238,70 @@ class Test_Style_Validator extends WP_UnitTestCase {
 		);
 		$this->assertCount( 1, $settings_errors );
 	}
+
+	/**
+	 * Layer 5: block-supports
+	 */
+	public function test_supported_block_style_passes() {
+		$result = WP_Theme_Guard_Style_Validator::execute( array(
+			'styles'    => array(
+				'color' => array( 'text' => 'var(--wp--preset--color--black)' ),
+			),
+			'blockName' => 'core/paragraph',
+		) );
+
+		$support_errors = array_filter(
+			$result['errors'],
+			fn( $e ) => 'block-supports' === $e['layer']
+		);
+		$this->assertEmpty( $support_errors );
+	}
+
+	public function test_unsupported_block_style_produces_error() {
+		// core/image has color.text explicitly set to false.
+		$result = WP_Theme_Guard_Style_Validator::execute( array(
+			'styles'    => array(
+				'color' => array( 'text' => '#333333' ),
+			),
+			'blockName' => 'core/image',
+		) );
+
+		$support_errors = array_filter(
+			$result['errors'],
+			fn( $e ) => 'block-supports' === $e['layer']
+		);
+		$this->assertCount( 1, $support_errors );
+	}
+
+	public function test_unregistered_block_produces_error() {
+		$result = WP_Theme_Guard_Style_Validator::execute( array(
+			'styles'    => array(
+				'color' => array( 'background' => '#ff0000' ),
+			),
+			'blockName' => 'fake/nonexistent',
+		) );
+
+		$support_errors = array_filter(
+			$result['errors'],
+			fn( $e ) => 'block-supports' === $e['layer']
+		);
+		$this->assertCount( 1, $support_errors );
+		$this->assertStringContainsString( 'not registered', array_values( $support_errors )[0]['message'] );
+	}
+
+	public function test_block_shadow_support() {
+		// core/group supports shadow.
+		$result_group = WP_Theme_Guard_Style_Validator::execute( array(
+			'styles'    => array(
+				'shadow' => '0 1px 2px #000',
+			),
+			'blockName' => 'core/group',
+		) );
+
+		$group_errors = array_filter(
+			$result_group['errors'],
+			fn( $e ) => 'block-supports' === $e['layer']
+		);
+		$this->assertEmpty( $group_errors );
+	}
 }

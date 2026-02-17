@@ -62,6 +62,10 @@ class WP_Theme_Guard_Abilities {
 						'default'     => 'block',
 						'description' => 'The context for validation.',
 					),
+					'blockName' => array(
+						'type'        => 'string',
+						'description' => 'Optional block name (e.g. "core/paragraph"). When provided, also checks block supports.',
+					),
 				),
 				'required'   => array( 'styles' ),
 			),
