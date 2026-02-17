@@ -304,4 +304,52 @@ class Test_Style_Validator extends WP_UnitTestCase {
 		);
 		$this->assertEmpty( $group_errors );
 	}
+
+	/**
+	 * Layer 6: preset-suggestion
+	 */
+	public function test_close_color_suggests_preset() {
+		$result = WP_Theme_Guard_Style_Validator::execute( array(
+			'styles' => array(
+				'color' => array( 'background' => '#cc2e2e' ),
+			),
+		) );
+
+		$suggestions = array_filter(
+			$result['warnings'],
+			fn( $w ) => 'preset-suggestion' === $w['layer']
+		);
+		$this->assertNotEmpty( $suggestions );
+		$suggestion = array_values( $suggestions )[0];
+		$this->assertStringContainsString( 'var(--wp--preset--color--', $suggestion['suggestion'] );
+	}
+
+	public function test_preset_reference_gets_no_suggestion() {
+		$result = WP_Theme_Guard_Style_Validator::execute( array(
+			'styles' => array(
+				'color' => array( 'background' => 'var(--wp--preset--color--vivid-red)' ),
+			),
+		) );
+
+		$suggestions = array_filter(
+			$result['warnings'],
+			fn( $w ) => 'preset-suggestion' === $w['layer']
+		);
+		$this->assertEmpty( $suggestions );
+	}
+
+	public function test_matching_font_size_suggests_preset() {
+		$result = WP_Theme_Guard_Style_Validator::execute( array(
+			'styles' => array(
+				'typography' => array( 'fontSize' => '13px' ),
+			),
+		) );
+
+		$suggestions = array_filter(
+			$result['warnings'],
+			fn( $w ) => 'preset-suggestion' === $w['layer']
+		);
+		$this->assertNotEmpty( $suggestions );
+		$this->assertStringContainsString( 'var(--wp--preset--font-size--', array_values( $suggestions )[0]['suggestion'] );
+	}
 }
