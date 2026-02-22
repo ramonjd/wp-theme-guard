@@ -56,15 +56,15 @@ Same structure as Claude Code.
 
 ## Exposed MCP Tools
 
-The default MCP server automatically exposes all registered abilities as tools:
+The default MCP server exposes three meta-tools. Abilities require `mcp.public = true` in their `meta` registration to be discoverable.
 
-| MCP Tool Name | WordPress Ability | Description |
-|---|---|---|
-| `wp-theme-guard-validate-styles` | `wp-theme-guard/validate-styles` | Validate styles against theme.json |
-| `wp-theme-guard-validate-blocks` | `wp-theme-guard/validate-blocks` | Validate block markup |
-| `wp-theme-guard-get-constraints` | `wp-theme-guard/get-constraints` | Export site design constraints |
+| MCP Tool | Description |
+|---|---|
+| `mcp-adapter-discover-abilities` | List all public abilities |
+| `mcp-adapter-get-ability-info` | Get schema details for a specific ability |
+| `mcp-adapter-execute-ability` | Execute an ability by name with parameters |
 
-Plus built-in adapter tools: `mcp-adapter-discover-abilities`, `mcp-adapter-execute-ability`, `mcp-adapter-get-ability-info`.
+Abilities are called via `mcp-adapter-execute-ability` with `ability_name` (e.g. `wp-theme-guard/validate-styles`) and `parameters`.
 
 ## Verification Plan
 
