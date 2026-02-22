@@ -19,6 +19,11 @@ if ( ! defined( 'ABSPATH' ) ) {
 define( 'WP_THEME_GUARD_VERSION', '0.1.0' );
 define( 'WP_THEME_GUARD_PATH', plugin_dir_path( __FILE__ ) );
 
+// Load Composer autoloader for MCP Adapter.
+if ( file_exists( WP_THEME_GUARD_PATH . 'vendor/autoload.php' ) ) {
+	require_once WP_THEME_GUARD_PATH . 'vendor/autoload.php';
+}
+
 /**
  * Check that the Abilities API is available before loading.
  */
@@ -32,6 +37,11 @@ function wp_theme_guard_init(): void {
 	require_once WP_THEME_GUARD_PATH . 'includes/class-block-validator.php';
 	require_once WP_THEME_GUARD_PATH . 'includes/class-schema-provider.php';
 	require_once WP_THEME_GUARD_PATH . 'includes/class-abilities.php';
+
+	// Initialize MCP Adapter if available.
+	if ( class_exists( \WP\MCP\Plugin::class ) ) {
+		\WP\MCP\Plugin::instance();
+	}
 }
 add_action( 'plugins_loaded', 'wp_theme_guard_init' );
 
