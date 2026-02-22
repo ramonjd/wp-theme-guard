@@ -34,38 +34,45 @@ npx wp-env run tests-cli --env-cwd=wp-content/plugins/nairobi vendor/bin/phpunit
 
 Connect AI agents (Claude Code, Cursor) to wp-theme-guard abilities via MCP.
 
-### Prerequisites
-
-wp-env must be running (`npx wp-env start`).
-
 ### Setup
 
-```bash
-# Install dependencies (includes MCP Adapter)
-composer install
+wp-env must be running first (`npx wp-env start`).
 
-# Generate application password for MCP auth
+```bash
+# Generate app password and write .env + .mcp.json
 ./bin/setup-mcp.sh
 ```
 
+This creates:
+- `.env` — credentials for scripts and curl testing
+- `.mcp.json` — Claude Code MCP server config with credentials
+
+Both files are gitignored.
+
 ### Connect Claude Code
 
-The `.mcp.json` in the project root configures the MCP server. After running `setup-mcp.sh`, add the credentials from `.env` to your environment or `.mcp.json`:
-
-```json
-"env": {
-    "WP_API_URL": "http://localhost:8890/index.php?rest_route=/mcp/mcp-adapter-default-server",
-    "WP_API_USERNAME": "admin",
-    "WP_API_PASSWORD": "<from .env>",
-    "OAUTH_ENABLED": "false"
-}
-```
-
-Restart Claude Code to pick up the MCP server.
+Restart Claude Code after running `setup-mcp.sh`. The `wp-theme-guard` MCP server connects automatically via `.mcp.json`.
 
 ### Connect Cursor
 
-Same as Claude Code — config is at `.cursor/mcp.json`.
+Copy the credentials from `.env` into `.cursor/mcp.json`:
+
+```json
+{
+    "mcpServers": {
+        "wp-theme-guard": {
+            "command": "npx",
+            "args": ["-y", "@automattic/mcp-wordpress-remote@latest"],
+            "env": {
+                "WP_API_URL": "http://localhost:8890/index.php?rest_route=/mcp/mcp-adapter-default-server",
+                "WP_API_USERNAME": "admin",
+                "WP_API_PASSWORD": "<WP_API_PASSWORD from .env>",
+                "OAUTH_ENABLED": "false"
+            }
+        }
+    }
+}
+```
 
 ### Available MCP Tools
 

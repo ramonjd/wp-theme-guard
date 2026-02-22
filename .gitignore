@@ -5,3 +5,9 @@ package.json
 package-lock.json
 .phpunit.result.cache
 .env
+.mcp.json
+
+# Override global gitignore — these are project docs, not personal config.
+!CLAUDE.md
+!AGENTS.md
+!.cursorrules

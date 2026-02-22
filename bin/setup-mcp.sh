@@ -23,7 +23,31 @@ WP_API_PASSWORD=$APP_PASSWORD
 EOF
 
 echo "Credentials written to .env"
+
+# Write .mcp.json with credentials.
+MCP_FILE="$PROJECT_DIR/.mcp.json"
+cat > "$MCP_FILE" << MCPEOF
+{
+	"mcpServers": {
+		"wp-theme-guard": {
+			"command": "npx",
+			"args": ["-y", "@automattic/mcp-wordpress-remote@latest"],
+			"env": {
+				"WP_API_URL": "http://localhost:8890/index.php?rest_route=/mcp/mcp-adapter-default-server",
+				"WP_API_USERNAME": "admin",
+				"WP_API_PASSWORD": "$APP_PASSWORD",
+				"OAUTH_ENABLED": "false",
+				"LOG_LEVEL": "1"
+			}
+		}
+	}
+}
+MCPEOF
+
+echo "MCP config written to .mcp.json"
 echo ""
 echo "MCP server URL: http://localhost:8890/index.php?rest_route=/mcp/mcp-adapter-default-server"
 echo "Username: admin"
 echo "Password: $APP_PASSWORD"
+echo ""
+echo "Restart Claude Code to pick up the MCP server."
