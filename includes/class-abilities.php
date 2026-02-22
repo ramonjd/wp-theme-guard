@@ -78,6 +78,11 @@ class WP_Theme_Guard_Abilities {
 				),
 				'required'   => array( 'valid', 'errors', 'warnings' ),
 			),
+			'meta'                => array(
+				'mcp' => array(
+					'public' => true,
+				),
+			),
 		) );
 	}
 
@@ -115,6 +120,11 @@ class WP_Theme_Guard_Abilities {
 				),
 				'required'   => array( 'valid', 'block_count', 'errors', 'warnings' ),
 			),
+			'meta'                => array(
+				'mcp' => array(
+					'public' => true,
+				),
+			),
 		) );
 	}
 
@@ -151,6 +161,9 @@ class WP_Theme_Guard_Abilities {
 				),
 			),
 			'meta'                => array(
+				'mcp'         => array(
+					'public' => true,
+				),
 				'annotations' => array(
 					'readonly' => true,
 				),

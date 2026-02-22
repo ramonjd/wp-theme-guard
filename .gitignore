@@ -4,3 +4,9 @@ composer.lock
 package.json
 package-lock.json
 .phpunit.result.cache
+.env
+
+# Override global gitignore — these are project docs, not personal config.
+!CLAUDE.md
+!AGENTS.md
+!.cursorrules
