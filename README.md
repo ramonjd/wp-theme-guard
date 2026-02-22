@@ -39,15 +39,11 @@ Connect AI agents (Claude Code, Cursor) to wp-theme-guard abilities via MCP.
 wp-env must be running first (`npx wp-env start`).
 
 ```bash
-# Generate app password and write .env + .mcp.json
+# Verify MCP adapter is loaded and write .mcp.json
 ./bin/setup-mcp.sh
 ```
 
-This creates:
-- `.env` — credentials for scripts and curl testing
-- `.mcp.json` — Claude Code MCP server config with credentials
-
-Both files are gitignored.
+This uses STDIO transport via WP-CLI — no app passwords or npm proxies needed.
 
 ### Connect Claude Code
 
@@ -55,20 +51,15 @@ Restart Claude Code after running `setup-mcp.sh`. The `wp-theme-guard` MCP serve
 
 ### Connect Cursor
 
-Copy the credentials from `.env` into `.cursor/mcp.json`:
+The `.cursor/mcp.json` is already configured. Both configs use the same STDIO transport:
 
 ```json
 {
     "mcpServers": {
         "wp-theme-guard": {
             "command": "npx",
-            "args": ["-y", "@automattic/mcp-wordpress-remote@latest"],
-            "env": {
-                "WP_API_URL": "http://localhost:8890/index.php?rest_route=/mcp/mcp-adapter-default-server",
-                "WP_API_USERNAME": "admin",
-                "WP_API_PASSWORD": "<WP_API_PASSWORD from .env>",
-                "OAUTH_ENABLED": "false"
-            }
+            "args": ["wp-env", "run", "cli", "--", "wp", "mcp-adapter", "serve",
+                     "--server=mcp-adapter-default-server", "--user=admin"]
         }
     }
 }

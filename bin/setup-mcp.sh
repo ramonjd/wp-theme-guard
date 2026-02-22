@@ -3,51 +3,47 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
-ENV_FILE="$PROJECT_DIR/.env"
 
-echo "Setting up MCP authentication..."
+echo "Setting up MCP for wp-theme-guard..."
 
-# Generate application password.
-APP_PASSWORD=$(npx wp-env run cli -- wp user application-password create admin mcp-testing --porcelain --user=admin 2>/dev/null)
-
-if [ -z "$APP_PASSWORD" ]; then
-    echo "Error: Failed to generate application password."
+# Verify wp-env is running.
+if ! npx wp-env run cli -- wp option get siteurl > /dev/null 2>&1; then
+    echo "Error: wp-env is not running. Start it with: npx wp-env start"
     exit 1
 fi
 
-# Write .env file.
-cat > "$ENV_FILE" << EOF
-WP_API_URL=http://localhost:8890/index.php?rest_route=/mcp/mcp-adapter-default-server
-WP_API_USERNAME=admin
-WP_API_PASSWORD=$APP_PASSWORD
-EOF
+# Verify MCP adapter is loaded.
+if ! npx wp-env run cli -- wp mcp-adapter list --user=admin > /dev/null 2>&1; then
+    echo "Error: MCP adapter not loaded. Run: npx wp-env run cli --env-cwd=wp-content/plugins/nairobi composer install"
+    exit 1
+fi
 
-echo "Credentials written to .env"
-
-# Write .mcp.json with credentials.
-MCP_FILE="$PROJECT_DIR/.mcp.json"
-cat > "$MCP_FILE" << MCPEOF
+# Write .mcp.json for Claude Code.
+cat > "$PROJECT_DIR/.mcp.json" << 'EOF'
 {
 	"mcpServers": {
 		"wp-theme-guard": {
 			"command": "npx",
-			"args": ["-y", "@automattic/mcp-wordpress-remote@latest"],
-			"env": {
-				"WP_API_URL": "http://localhost:8890/index.php?rest_route=/mcp/mcp-adapter-default-server",
-				"WP_API_USERNAME": "admin",
-				"WP_API_PASSWORD": "$APP_PASSWORD",
-				"OAUTH_ENABLED": "false",
-				"LOG_LEVEL": "1"
-			}
+			"args": [
+				"wp-env",
+				"run",
+				"cli",
+				"--",
+				"wp",
+				"mcp-adapter",
+				"serve",
+				"--server=mcp-adapter-default-server",
+				"--user=admin"
+			]
 		}
 	}
 }
-MCPEOF
+EOF
 
 echo "MCP config written to .mcp.json"
 echo ""
-echo "MCP server URL: http://localhost:8890/index.php?rest_route=/mcp/mcp-adapter-default-server"
-echo "Username: admin"
-echo "Password: $APP_PASSWORD"
+echo "Transport: STDIO (via wp-env + WP-CLI)"
+echo "No app passwords required."
 echo ""
 echo "Restart Claude Code to pick up the MCP server."
+echo "For Cursor, copy .mcp.json to .cursor/mcp.json"
