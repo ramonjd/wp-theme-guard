@@ -4,7 +4,7 @@
 			"command": "npx",
 			"args": ["-y", "@automattic/mcp-wordpress-remote@latest"],
 			"env": {
-				"WP_API_URL": "http://localhost:8890/wp-json/mcp/mcp-adapter-default-server",
+				"WP_API_URL": "http://localhost:8890/index.php?rest_route=/mcp/mcp-adapter-default-server",
 				"OAUTH_ENABLED": "false",
 				"LOG_LEVEL": "1"
 			}
