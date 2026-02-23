@@ -44,10 +44,41 @@ class WP_Theme_Guard_Agent_REST {
 				),
 			),
 		) );
+
+		register_rest_route( 'wp-theme-guard/v1', '/agent/reset-styles', array(
+			'methods'             => 'POST',
+			'callback'            => array( __CLASS__, 'handle_reset_styles' ),
+			'permission_callback' => array( __CLASS__, 'check_permissions' ),
+		) );
 	}
 
 	public static function check_permissions(): bool {
 		return current_user_can( 'edit_theme_options' );
+	}
+
+	/**
+	 * Handle reset: replace the global styles CPT with the base theme.json object.
+	 */
+	public static function handle_reset_styles(): WP_REST_Response|WP_Error {
+		$post_id = WP_Theme_JSON_Resolver::get_user_global_styles_post_id();
+
+		$base_content = wp_json_encode( array(
+			'version'                    => WP_Theme_JSON::LATEST_SCHEMA,
+			'isGlobalStylesUserThemeJSON' => true,
+			'settings'                   => new \stdClass(),
+			'styles'                     => new \stdClass(),
+		) );
+
+		$result = wp_update_post( array(
+			'ID'           => $post_id,
+			'post_content' => $base_content,
+		), true );
+
+		if ( is_wp_error( $result ) ) {
+			return $result;
+		}
+
+		return new WP_REST_Response( array( 'reset' => true ), 200 );
 	}
 
 	/**

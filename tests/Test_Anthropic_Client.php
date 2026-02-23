@@ -17,13 +17,15 @@ class Test_Anthropic_Client extends WP_UnitTestCase {
 		parent::tear_down();
 	}
 
-	public function test_get_tool_definitions_returns_three_tools(): void {
+	public function test_get_tool_definitions_returns_five_tools(): void {
 		$tools = $this->client->get_tool_definitions();
-		$this->assertCount( 3, $tools );
+		$this->assertCount( 5, $tools );
 		$names = array_column( $tools, 'name' );
 		$this->assertContains( 'get_constraints', $names );
 		$this->assertContains( 'validate_styles', $names );
 		$this->assertContains( 'validate_blocks', $names );
+		$this->assertContains( 'get_current_styles', $names );
+		$this->assertContains( 'reset_styles', $names );
 	}
 
 	public function test_each_tool_has_input_schema(): void {
@@ -305,7 +307,7 @@ class Test_Anthropic_Client extends WP_UnitTestCase {
 
 		$this->assertSame( 'claude-sonnet-4-20250514', $captured_body['model'] );
 		$this->assertArrayHasKey( 'system', $captured_body );
-		$this->assertCount( 3, $captured_body['tools'] );
+		$this->assertCount( 5, $captured_body['tools'] );
 		$this->assertCount( 1, $captured_body['messages'] );
 		$this->assertSame( 'user', $captured_body['messages'][0]['role'] );
 		$this->assertSame( 'Hello', $captured_body['messages'][0]['content'] );
@@ -339,5 +341,125 @@ class Test_Anthropic_Client extends WP_UnitTestCase {
 		// existing 2 + new user message = 3, then + assistant = 4
 		$this->assertCount( 4, $result['conversation'] );
 		$this->assertSame( 'Second message', $result['conversation'][2]['content'] );
+	}
+
+	public function test_reset_styles_produces_reset(): void {
+		$call_count = 0;
+
+		add_filter( 'pre_http_request', function ( $pre, $args, $url ) use ( &$call_count ) {
+			if ( ! str_contains( $url, 'api.anthropic.com' ) ) {
+				return $pre;
+			}
+			$call_count++;
+			if ( 1 === $call_count ) {
+				return array(
+					'response' => array( 'code' => 200 ),
+					'body'     => wp_json_encode( array(
+						'id'          => 'msg_1',
+						'type'        => 'message',
+						'role'        => 'assistant',
+						'content'     => array(
+							array(
+								'type'  => 'tool_use',
+								'id'    => 'toolu_r',
+								'name'  => 'reset_styles',
+								'input' => new \stdClass(),
+							),
+						),
+						'stop_reason' => 'tool_use',
+					) ),
+				);
+			}
+			return array(
+				'response' => array( 'code' => 200 ),
+				'body'     => wp_json_encode( array(
+					'id'          => 'msg_2',
+					'type'        => 'message',
+					'role'        => 'assistant',
+					'content'     => array( array( 'type' => 'text', 'text' => 'Reset complete!' ) ),
+					'stop_reason' => 'end_turn',
+				) ),
+			);
+		}, 10, 3 );
+
+		$resetter_called = false;
+		$mock_executor   = function ( string $ability, array $input ): array {
+			return array();
+		};
+		$mock_reader = function (): array {
+			return array( 'styles' => array() );
+		};
+		$mock_resetter = function () use ( &$resetter_called ): array {
+			$resetter_called = true;
+			return array( 'reset' => true );
+		};
+		$client = new WP_Theme_Guard_Anthropic_Client( 'test-key', 'test-model', 5, $mock_executor, $mock_reader, $mock_resetter );
+		$result = $client->chat( 'Reset everything' );
+
+		$this->assertTrue( $resetter_called );
+		$this->assertSame( array(), $result['styles'] );
+		$this->assertTrue( $result['styles_reset'] );
+		// Tool result should confirm the reset.
+		$tool_result_msg     = $result['conversation'][2];
+		$tool_result_content = json_decode( $tool_result_msg['content'][0]['content'], true );
+		$this->assertTrue( $tool_result_content['reset'] );
+	}
+
+	public function test_get_current_styles_calls_reader(): void {
+		$call_count    = 0;
+		$reader_called = false;
+		$current       = array( 'color' => array( 'text' => '#fff' ) );
+
+		add_filter( 'pre_http_request', function ( $pre, $args, $url ) use ( &$call_count ) {
+			if ( ! str_contains( $url, 'api.anthropic.com' ) ) {
+				return $pre;
+			}
+			$call_count++;
+			if ( 1 === $call_count ) {
+				return array(
+					'response' => array( 'code' => 200 ),
+					'body'     => wp_json_encode( array(
+						'id'          => 'msg_1',
+						'type'        => 'message',
+						'role'        => 'assistant',
+						'content'     => array(
+							array(
+								'type'  => 'tool_use',
+								'id'    => 'toolu_g',
+								'name'  => 'get_current_styles',
+								'input' => new \stdClass(),
+							),
+						),
+						'stop_reason' => 'tool_use',
+					) ),
+				);
+			}
+			return array(
+				'response' => array( 'code' => 200 ),
+				'body'     => wp_json_encode( array(
+					'id'          => 'msg_2',
+					'type'        => 'message',
+					'role'        => 'assistant',
+					'content'     => array( array( 'type' => 'text', 'text' => 'Got styles.' ) ),
+					'stop_reason' => 'end_turn',
+				) ),
+			);
+		}, 10, 3 );
+
+		$mock_executor = function ( string $ability, array $input ): array {
+			return array();
+		};
+		$mock_reader = function () use ( $current, &$reader_called ): array {
+			$reader_called = true;
+			return array( 'styles' => $current );
+		};
+		$client = new WP_Theme_Guard_Anthropic_Client( 'test-key', 'test-model', 5, $mock_executor, $mock_reader );
+		$result = $client->chat( 'Show current' );
+
+		$this->assertTrue( $reader_called );
+		// The tool result should appear in conversation as the third message (user with tool_result).
+		$tool_result_msg     = $result['conversation'][2];
+		$tool_result_content = json_decode( $tool_result_msg['content'][0]['content'], true );
+		$this->assertSame( $current, $tool_result_content['styles'] );
 	}
 }

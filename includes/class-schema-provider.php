@@ -47,6 +47,7 @@ class WP_Theme_Guard_Schema_Provider {
 						'fontSize'   => 'var(--wp--preset--font-size--medium)',
 						'lineHeight' => '1.6',
 					),
+					'css'        => '.wp-site-blocks { scroll-margin-top: 100px; }',
 					'elements'   => array(
 						'button' => array(
 							'color' => array(
@@ -81,6 +82,7 @@ class WP_Theme_Guard_Schema_Provider {
 									'bottom' => 'var(--wp--preset--spacing--50)',
 								),
 							),
+							'css'      => '& .custom-layout { display: grid; gap: 1rem; }',
 							'elements' => array(
 								'link' => array(
 									'color' => array(
@@ -125,6 +127,14 @@ class WP_Theme_Guard_Schema_Provider {
 				'outline'    => array( 'color', 'width', 'style', 'offset' ),
 				'dimensions' => array( 'minHeight', 'aspectRatio' ),
 				'shadow'     => 'preset slug or custom CSS shadow value',
+				'css'        => 'Raw CSS string for styling not covered by other properties. Supports & nesting syntax.',
+			),
+			'css_property'     => array(
+				'description'    => 'The css property is an escape hatch for styling beyond declarative theme.json properties. It accepts a raw CSS string and is not subject to theme preset constraints.',
+				'placement'      => 'Can appear at global (styles.css), block (styles.blocks.<blockName>.css), or element (styles.elements.<element>.css) level.',
+				'nesting_syntax' => 'Use & to reference the current selector: "& .inner { color: red; }" or "& > p { margin: 0; }". Root-level rules (without &) apply directly to the target.',
+				'example_global' => 'styles.css = ".wp-site-blocks { scroll-margin-top: 100px; }"',
+				'example_block'  => 'styles.blocks.core/group.css = "& .custom-layout { display: grid; gap: 1rem; }"',
 			),
 			'values'           => array(
 				'presets'    => 'var(--wp--preset--<category>--<slug>) — preferred for design system consistency',

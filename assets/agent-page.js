@@ -4,6 +4,7 @@
 	var config = window.wpThemeGuardAgent;
 	var conversation = [];
 	var lastStyles = null;
+	var lastStylesReset = false;
 
 	var els = {
 		conversation: document.getElementById( 'agent-conversation' ),
@@ -57,9 +58,13 @@
 			.then( function ( data ) {
 				conversation = data.conversation;
 
-				// Keep previous valid styles if this response didn't validate new ones.
-				if ( data.styles ) {
-					lastStyles = data.styles;
+				// Handle styles reset (empty styles) or updated styles.
+				if ( data.styles_reset ) {
+					lastStyles = {};
+					lastStylesReset = true;
+				} else if ( data.styles ) {
+					lastStyles = deepMerge( lastStyles || {}, data.styles );
+					lastStylesReset = false;
 				}
 
 				loadingEl.remove();
@@ -178,7 +183,7 @@
 	}
 
 	function saveStyles() {
-		if ( ! lastStyles ) {
+		if ( ! lastStyles && ! lastStylesReset ) {
 			return;
 		}
 
@@ -186,19 +191,29 @@
 		els.saveStatus.textContent = 'Saving\u2026';
 
 		var gsPath = '/wp/v2/global-styles/' + config.globalStylesId;
+		var savePromise;
 
-		// GET current styles, deep-merge, POST back via core REST endpoint.
-		wp.apiFetch( { path: gsPath } )
-			.then( function ( current ) {
-				var merged = deepMerge( current.styles || {}, lastStyles );
-				return wp.apiFetch( {
-					path: gsPath,
-					method: 'POST',
-					data: { styles: merged },
+		if ( lastStylesReset ) {
+			// Hard reset: replace the entire global styles CPT with the base theme.json.
+			savePromise = wp.apiFetch( {
+				path: 'wp-theme-guard/v1/agent/reset-styles',
+				method: 'POST',
+			} );
+		} else {
+			// Normal: GET current styles, deep-merge, POST back.
+			savePromise = wp.apiFetch( { path: gsPath } )
+				.then( function ( current ) {
+					var merged = deepMerge( current.styles || {}, lastStyles );
+					return wp.apiFetch( {
+						path: gsPath,
+						method: 'POST',
+						data: { styles: merged },
+					} );
 				} );
-			} )
+		}
+
+		savePromise
 			.then( function () {
-				// Fetch latest revision for the link.
 				return wp.apiFetch( {
 					path: gsPath + '/revisions?per_page=1',
 				} );
