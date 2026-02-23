@@ -23,9 +23,24 @@ class WP_Theme_Guard_Agent_REST {
 					'sanitize_callback' => 'sanitize_textarea_field',
 				),
 				'conversation' => array(
-					'required' => false,
-					'type'     => 'array',
-					'default'  => array(),
+					'required'          => false,
+					'type'              => 'array',
+					'default'           => array(),
+					'validate_callback' => static function ( $value ): bool {
+						if ( ! is_array( $value ) ) {
+							return false;
+						}
+						$allowed_roles = array( 'user', 'assistant' );
+						foreach ( $value as $entry ) {
+							if ( ! is_array( $entry ) || ! isset( $entry['role'], $entry['content'] ) ) {
+								return false;
+							}
+							if ( ! in_array( $entry['role'], $allowed_roles, true ) ) {
+								return false;
+							}
+						}
+						return true;
+					},
 				),
 			),
 		) );
