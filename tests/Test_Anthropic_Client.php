@@ -12,6 +12,11 @@ class Test_Anthropic_Client extends WP_UnitTestCase {
 		$this->client = new WP_Theme_Guard_Anthropic_Client( 'test-api-key' );
 	}
 
+	public function tear_down(): void {
+		remove_all_filters( 'pre_http_request' );
+		parent::tear_down();
+	}
+
 	public function test_get_tool_definitions_returns_three_tools(): void {
 		$tools = $this->client->get_tool_definitions();
 		$this->assertCount( 3, $tools );

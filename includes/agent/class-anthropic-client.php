@@ -233,6 +233,13 @@ PROMPT;
 		$code = wp_remote_retrieve_response_code( $response );
 		$body = json_decode( wp_remote_retrieve_body( $response ), true );
 
+		if ( ! is_array( $body ) ) {
+			return new \WP_Error(
+				'anthropic_api_error',
+				'Invalid JSON in API response'
+			);
+		}
+
 		if ( 200 !== $code ) {
 			return new \WP_Error(
 				'anthropic_api_error',
