@@ -135,4 +135,129 @@ You are a WordPress theme style assistant. You generate and modify CSS styles th
 After producing valid styles, present the final styles JSON object clearly so the user can review before saving.
 PROMPT;
 	}
+
+	/**
+	 * Send a message and run the agentic tool-use loop.
+	 *
+	 * @param string $message      The user's new message.
+	 * @param array  $conversation Previous conversation messages (Anthropic format).
+	 * @return array {
+	 *     @type array      $conversation Updated conversation trace.
+	 *     @type array|null $styles       Last successfully validated styles, or null.
+	 *     @type int        $rounds       Number of API round-trips.
+	 *     @type string     $error        Error message if something failed.
+	 * }
+	 */
+	public function chat( string $message, array $conversation = array() ): array {
+		$conversation[] = array( 'role' => 'user', 'content' => $message );
+
+		$rounds = 0;
+		$styles = null;
+
+		while ( $rounds < $this->max_rounds ) {
+			$rounds++;
+
+			$response = $this->send_request( $conversation );
+
+			if ( is_wp_error( $response ) ) {
+				return array(
+					'conversation' => $conversation,
+					'error'        => $response->get_error_message(),
+					'styles'       => null,
+					'rounds'       => $rounds,
+				);
+			}
+
+			$conversation[] = array(
+				'role'    => 'assistant',
+				'content' => $response['content'],
+			);
+
+			if ( 'tool_use' !== $response['stop_reason'] ) {
+				break;
+			}
+
+			$tool_results = array();
+			foreach ( $response['content'] as $block ) {
+				if ( 'tool_use' !== $block['type'] ) {
+					continue;
+				}
+
+				$result = $this->execute_tool( $block['name'], $block['input'] ?? array() );
+
+				if ( 'validate_styles' === $block['name'] && ! empty( $result['valid'] ) ) {
+					$styles = $block['input']['styles'] ?? null;
+				}
+
+				$tool_results[] = array(
+					'type'        => 'tool_result',
+					'tool_use_id' => $block['id'],
+					'content'     => wp_json_encode( $result ),
+				);
+			}
+
+			$conversation[] = array( 'role' => 'user', 'content' => $tool_results );
+		}
+
+		return array(
+			'conversation' => $conversation,
+			'styles'       => $styles,
+			'rounds'       => $rounds,
+		);
+	}
+
+	/**
+	 * Send a request to the Anthropic Messages API.
+	 */
+	private function send_request( array $messages ): array|\WP_Error {
+		$response = wp_remote_post( 'https://api.anthropic.com/v1/messages', array(
+			'headers' => array(
+				'x-api-key'          => $this->api_key,
+				'anthropic-version'  => '2023-06-01',
+				'content-type'       => 'application/json',
+			),
+			'body'    => wp_json_encode( array(
+				'model'      => $this->model,
+				'max_tokens' => 4096,
+				'system'     => $this->get_system_prompt(),
+				'messages'   => $messages,
+				'tools'      => $this->get_tool_definitions(),
+			) ),
+			'timeout' => 60,
+		) );
+
+		if ( is_wp_error( $response ) ) {
+			return $response;
+		}
+
+		$code = wp_remote_retrieve_response_code( $response );
+		$body = json_decode( wp_remote_retrieve_body( $response ), true );
+
+		if ( 200 !== $code ) {
+			return new \WP_Error(
+				'anthropic_api_error',
+				$body['error']['message'] ?? "API returned status {$code}"
+			);
+		}
+
+		return $body;
+	}
+
+	/**
+	 * Execute a tool by calling the corresponding wp-theme-guard ability.
+	 */
+	private function execute_tool( string $name, array $input ): array {
+		$ability = self::TOOL_ABILITY_MAP[ $name ] ?? null;
+		if ( ! $ability ) {
+			return array( 'error' => "Unknown tool: {$name}" );
+		}
+
+		$result = ( $this->tool_executor )( $ability, $input );
+
+		if ( is_wp_error( $result ) ) {
+			return array( 'error' => $result->get_error_message() );
+		}
+
+		return $result;
+	}
 }
