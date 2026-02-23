@@ -56,7 +56,11 @@
 		} )
 			.then( function ( data ) {
 				conversation = data.conversation;
-				lastStyles = data.styles;
+
+				// Keep previous valid styles if this response didn't validate new ones.
+				if ( data.styles ) {
+					lastStyles = data.styles;
+				}
 
 				loadingEl.remove();
 				renderConversation();

@@ -51,7 +51,7 @@ class WP_Theme_Guard_Anthropic_Client {
 		return array(
 			array(
 				'name'         => 'get_constraints',
-				'description'  => "Get the site's design rules: color palette, font sizes, spacing presets, block rules, and layout settings.",
+				'description'  => "Get the site's design rules and theme.json structure guide: targeting hierarchy, style properties, color palette, font sizes, spacing presets, block rules, and layout settings.",
 				'input_schema' => array(
 					'type'       => 'object',
 					'properties' => array(
@@ -59,7 +59,7 @@ class WP_Theme_Guard_Anthropic_Client {
 							'type'        => 'array',
 							'items'       => array(
 								'type' => 'string',
-								'enum' => array( 'styles', 'blocks', 'layout' ),
+								'enum' => array( 'structure', 'styles', 'blocks', 'layout' ),
 							),
 							'description' => 'Which constraint types to return. Defaults to all.',
 						),
@@ -118,25 +118,22 @@ class WP_Theme_Guard_Anthropic_Client {
 You are a WordPress theme style assistant. You generate and modify CSS styles that are compatible with the site's design system.
 
 ## Workflow
-1. ALWAYS call get_constraints first to learn the site's color palette, font sizes, spacing presets, and layout rules.
-2. Generate styles using the theme.json structure shown below.
-3. Call validate_styles to check your work.
-4. If errors are returned, fix them and re-validate.
-5. If warnings suggest preset alternatives, prefer using presets for design system consistency.
+1. ALWAYS call get_constraints first to learn the theme.json structure, available presets, and design rules.
+2. Study the complete_example in the structure guide — it shows how the final styles object must be structured with blocks, elements, and global styles.
+3. Use the common_aliases mapping to translate user terms (e.g. "buttons" → core/button, "container" → core/group).
+4. Generate styles following the targeting hierarchy.
+5. Call validate_styles for EACH target separately:
+   - For a specific block: set blockName (e.g. blockName: "core/button") and pass only that block's style properties.
+   - For global styles: omit blockName and pass the style properties directly.
+   - IMPORTANT: validate_styles takes flat style properties (color, typography, etc.), NOT the full tree with blocks/elements keys.
+6. If errors are returned, fix them and re-validate.
+7. If warnings suggest preset alternatives, prefer using presets for design system consistency.
 
-## Style Object Structure
-{
-  "color": { "text": "...", "background": "...", "gradient": "..." },
-  "typography": { "fontSize": "...", "fontFamily": "...", "fontWeight": "...", "lineHeight": "..." },
-  "spacing": { "padding": { "top": "...", "right": "...", "bottom": "...", "left": "..." }, "margin": { "top": "...", "bottom": "..." }, "blockGap": "..." },
-  "border": { "color": "...", "width": "...", "style": "...", "radius": "..." }
-}
-
-## Values
-- Preset references (preferred): var(--wp--preset--color--black), var(--wp--preset--font-size--large), var(--wp--preset--spacing--50)
-- Custom CSS values (when theme permits): #ff6600, 18px, 2rem, bold
-
-After producing valid styles, present the final styles JSON object clearly so the user can review before saving.
+## Completion
+When you have valid styles ready, present a summary to the user:
+- What was changed and which blocks/elements were targeted.
+- The final complete styles object (matching the complete_example structure from get_constraints).
+- Ask the user to confirm before they save.
 PROMPT;
 	}
 
@@ -156,7 +153,7 @@ PROMPT;
 		$conversation[] = array( 'role' => 'user', 'content' => $message );
 
 		$rounds = 0;
-		$styles = null;
+		$styles = array();
 
 		while ( $rounds < $this->max_rounds ) {
 			$rounds++;
@@ -190,7 +187,17 @@ PROMPT;
 				$result = $this->execute_tool( $block['name'], $block['input'] ?? array() );
 
 				if ( 'validate_styles' === $block['name'] && ! empty( $result['valid'] ) ) {
-					$styles = $block['input']['styles'] ?? null;
+					$fragment   = $block['input']['styles'] ?? array();
+					$block_name = $block['input']['blockName'] ?? '';
+
+					if ( $block_name ) {
+						$styles['blocks'][ $block_name ] = array_merge(
+							$styles['blocks'][ $block_name ] ?? array(),
+							$fragment
+						);
+					} else {
+						$styles = array_merge( $styles, $fragment );
+					}
 				}
 
 				$tool_results[] = array(
@@ -205,7 +212,7 @@ PROMPT;
 
 		return array(
 			'conversation' => $conversation,
-			'styles'       => $styles,
+			'styles'       => ! empty( $styles ) ? $styles : null,
 			'rounds'       => $rounds,
 		);
 	}

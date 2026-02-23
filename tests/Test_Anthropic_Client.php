@@ -170,6 +170,64 @@ class Test_Anthropic_Client extends WP_UnitTestCase {
 		$this->assertSame( $validated_styles, $result['styles'] );
 	}
 
+	public function test_chat_nests_block_styles_under_blocks_key(): void {
+		$call_count = 0;
+
+		add_filter( 'pre_http_request', function ( $pre, $args, $url ) use ( &$call_count ) {
+			if ( ! str_contains( $url, 'api.anthropic.com' ) ) {
+				return $pre;
+			}
+			$call_count++;
+			if ( 1 === $call_count ) {
+				return array(
+					'response' => array( 'code' => 200 ),
+					'body'     => wp_json_encode( array(
+						'id'          => 'msg_1',
+						'type'        => 'message',
+						'role'        => 'assistant',
+						'content'     => array(
+							array(
+								'type'  => 'tool_use',
+								'id'    => 'toolu_b',
+								'name'  => 'validate_styles',
+								'input' => array(
+									'styles'    => array( 'color' => array( 'background' => '#fff' ) ),
+									'blockName' => 'core/button',
+								),
+							),
+						),
+						'stop_reason' => 'tool_use',
+					) ),
+				);
+			}
+			return array(
+				'response' => array( 'code' => 200 ),
+				'body'     => wp_json_encode( array(
+					'id'          => 'msg_2',
+					'type'        => 'message',
+					'role'        => 'assistant',
+					'content'     => array( array( 'type' => 'text', 'text' => 'Done!' ) ),
+					'stop_reason' => 'end_turn',
+				) ),
+			);
+		}, 10, 3 );
+
+		$mock_executor = function ( string $ability, array $input ): array {
+			return array( 'valid' => true, 'errors' => array(), 'warnings' => array() );
+		};
+		$client = new WP_Theme_Guard_Anthropic_Client( 'test-key', 'test-model', 5, $mock_executor );
+		$result = $client->chat( 'Style buttons' );
+
+		$this->assertSame(
+			array(
+				'blocks' => array(
+					'core/button' => array( 'color' => array( 'background' => '#fff' ) ),
+				),
+			),
+			$result['styles']
+		);
+	}
+
 	public function test_chat_respects_max_rounds(): void {
 		add_filter( 'pre_http_request', function ( $pre, $args, $url ) {
 			if ( ! str_contains( $url, 'api.anthropic.com' ) ) {
