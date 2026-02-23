@@ -1,0 +1,29 @@
+name: PHPUnit
+
+on:
+  push:
+    branches: [trunk]
+  pull_request:
+    branches: [trunk]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Start wp-env and install Composer dependencies
+        run: |
+          npx wp-env start
+          npx wp-env run tests-cli --env-cwd="wp-content/plugins/${{ github.event.repository.name }}" composer install
+
+      - name: Run PHPUnit
+        run: npx wp-env run tests-cli --env-cwd="wp-content/plugins/${{ github.event.repository.name }}" vendor/bin/phpunit
