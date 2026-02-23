@@ -36,7 +36,11 @@ class WP_Theme_Guard_Anthropic_Client {
 		$this->model         = $model;
 		$this->max_rounds    = $max_rounds;
 		$this->tool_executor = $tool_executor ?? static function ( string $ability, array $input ) {
-			return wp_execute_ability( $ability, $input );
+			$ability_obj = wp_get_ability( $ability );
+			if ( ! $ability_obj ) {
+				return new \WP_Error( 'ability_not_found', "Ability '{$ability}' not found." );
+			}
+			return $ability_obj->execute( $input );
 		};
 	}
 
@@ -210,6 +214,21 @@ PROMPT;
 	 * Send a request to the Anthropic Messages API.
 	 */
 	private function send_request( array $messages ): array|\WP_Error {
+		// Ensure tool_use input fields are JSON objects, not arrays.
+		// PHP's json_decode turns {} into [] which json_encode sends as [].
+		$normalized = array_map( static function ( $msg ) {
+			if ( ! is_array( $msg['content'] ?? null ) ) {
+				return $msg;
+			}
+			$msg['content'] = array_map( static function ( $block ) {
+				if ( 'tool_use' === ( $block['type'] ?? '' ) && array_key_exists( 'input', $block ) ) {
+					$block['input'] = (object) $block['input'];
+				}
+				return $block;
+			}, $msg['content'] );
+			return $msg;
+		}, $messages );
+
 		$response = wp_remote_post( 'https://api.anthropic.com/v1/messages', array(
 			'headers' => array(
 				'x-api-key'          => $this->api_key,
@@ -220,7 +239,7 @@ PROMPT;
 				'model'      => $this->model,
 				'max_tokens' => 4096,
 				'system'     => $this->get_system_prompt(),
-				'messages'   => $messages,
+				'messages'   => $normalized,
 				'tools'      => $this->get_tool_definitions(),
 			) ),
 			'timeout' => 60,
