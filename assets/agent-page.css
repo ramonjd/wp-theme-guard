@@ -1,0 +1,108 @@
+/* Theme Guard Agent — admin page styles. */
+
+#agent-conversation {
+	min-height: 300px;
+	max-height: 500px;
+	overflow-y: auto;
+	border: 1px solid #c3c4c7;
+	background: #fff;
+	padding: 16px;
+	margin: 16px 0;
+	border-radius: 4px;
+}
+
+.agent-message {
+	margin-bottom: 12px;
+	padding: 10px 14px;
+	border-radius: 8px;
+	max-width: 80%;
+	white-space: pre-wrap;
+	word-wrap: break-word;
+	line-height: 1.5;
+}
+
+.agent-message-user {
+	margin-left: auto;
+	background: #2271b1;
+	color: #fff;
+}
+
+.agent-message-assistant {
+	background: #f0f0f1;
+	color: #1d2327;
+}
+
+.agent-loading {
+	color: #646970;
+	font-style: italic;
+}
+
+.agent-error {
+	color: #d63638;
+	background: #fcf0f1;
+}
+
+.agent-rounds {
+	text-align: center;
+	color: #646970;
+	font-size: 12px;
+	margin: 8px 0;
+}
+
+.agent-tool-call {
+	margin-bottom: 12px;
+	border: 1px solid #c3c4c7;
+	border-radius: 4px;
+	max-width: 80%;
+}
+
+.agent-tool-call summary {
+	padding: 8px 12px;
+	cursor: pointer;
+	background: #f6f7f7;
+	font-family: monospace;
+	font-size: 13px;
+}
+
+.agent-tool-call pre {
+	padding: 8px 12px;
+	margin: 0;
+	overflow-x: auto;
+	font-size: 12px;
+	max-height: 200px;
+	overflow-y: auto;
+	white-space: pre-wrap;
+	word-wrap: break-word;
+}
+
+.agent-tool-result {
+	border-top: 1px solid #c3c4c7;
+	background: #f9f9f9;
+}
+
+#agent-input-area {
+	display: flex;
+	gap: 8px;
+	align-items: flex-end;
+}
+
+#agent-input {
+	flex: 1;
+	resize: vertical;
+}
+
+#agent-actions {
+	margin-top: 12px;
+	display: flex;
+	align-items: center;
+	gap: 12px;
+}
+
+#agent-save-status {
+	color: #646970;
+}
+
+#agent-save-status a {
+	text-decoration: none;
+	color: #2271b1;
+}

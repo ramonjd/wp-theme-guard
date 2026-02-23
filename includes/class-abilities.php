@@ -145,9 +145,9 @@ class WP_Theme_Guard_Abilities {
 						'type'        => 'array',
 						'items'       => array(
 							'type' => 'string',
-							'enum' => array( 'styles', 'blocks', 'layout' ),
+							'enum' => array( 'structure', 'styles', 'blocks', 'layout' ),
 						),
-						'default'     => array( 'styles', 'blocks', 'layout' ),
+						'default'     => array( 'structure', 'styles', 'blocks', 'layout' ),
 						'description' => 'Which constraint types to return.',
 					),
 				),
@@ -155,9 +155,10 @@ class WP_Theme_Guard_Abilities {
 			'output_schema'       => array(
 				'type'       => 'object',
 				'properties' => array(
-					'styles' => array( 'type' => 'object' ),
-					'blocks' => array( 'type' => 'object' ),
-					'layout' => array( 'type' => 'object' ),
+					'structure' => array( 'type' => 'object' ),
+					'styles'    => array( 'type' => 'object' ),
+					'blocks'    => array( 'type' => 'object' ),
+					'layout'    => array( 'type' => 'object' ),
 				),
 			),
 			'meta'                => array(

@@ -49,9 +49,11 @@ class Test_Plugin_Integration extends WP_UnitTestCase {
 	public function test_get_constraints_end_to_end() {
 		$result = WP_Theme_Guard_Schema_Provider::execute( array() );
 
+		$this->assertArrayHasKey( 'structure', $result );
 		$this->assertArrayHasKey( 'styles', $result );
 		$this->assertArrayHasKey( 'blocks', $result );
 		$this->assertArrayHasKey( 'layout', $result );
 		$this->assertNotEmpty( $result['blocks']['registered'] );
+		$this->assertArrayHasKey( 'targeting', $result['structure'] );
 	}
 }
