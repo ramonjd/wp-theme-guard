@@ -27,7 +27,7 @@ class WP_Theme_Guard_Agent_Page {
 			return;
 		}
 
-		$plugin_url = plugins_url( '', dirname( __FILE__ ) );
+		$plugin_url = plugins_url( '', dirname( __FILE__, 2 ) );
 
 		wp_enqueue_style(
 			'wp-theme-guard-agent',

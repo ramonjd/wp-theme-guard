@@ -43,13 +43,17 @@ function wp_theme_guard_init(): void {
 		\WP\MCP\Plugin::instance();
 	}
 
-	// Load test agent when API key is configured.
+	// Load test agent admin page (always, so the setup notice is visible).
+	if ( is_admin() ) {
+		require_once WP_THEME_GUARD_PATH . 'includes/agent/class-agent-page.php';
+		WP_Theme_Guard_Agent_Page::init();
+	}
+
+	// Load agent REST endpoint and client when API key is configured.
 	if ( defined( 'WP_THEME_GUARD_API_KEY' ) ) {
 		require_once WP_THEME_GUARD_PATH . 'includes/agent/class-anthropic-client.php';
 		require_once WP_THEME_GUARD_PATH . 'includes/agent/class-agent-rest.php';
-		require_once WP_THEME_GUARD_PATH . 'includes/agent/class-agent-page.php';
 		WP_Theme_Guard_Agent_REST::init();
-		WP_Theme_Guard_Agent_Page::init();
 	}
 }
 add_action( 'plugins_loaded', 'wp_theme_guard_init' );
