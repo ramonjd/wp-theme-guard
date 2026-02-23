@@ -140,6 +140,12 @@ class WP_Theme_Guard_Style_Validator {
 		$safe_pairs  = array();
 
 		foreach ( $pairs as $path => $value ) {
+			// The css property is a raw CSS string, not a property-value pair.
+			if ( 'css' === $path ) {
+				$safe_pairs[ $path ] = $value;
+				continue;
+			}
+
 			if ( '' === trim( $value ) ) {
 				$errors[] = array(
 					'property' => $path,
@@ -269,6 +275,11 @@ class WP_Theme_Guard_Style_Validator {
 		}
 
 		foreach ( $pairs as $path => $value ) {
+			// The css property is a theme.json author feature, not a block support.
+			if ( 'css' === $path ) {
+				continue;
+			}
+
 			$support_path = self::get_block_support_path( $path );
 			if ( null === $support_path ) {
 				continue;

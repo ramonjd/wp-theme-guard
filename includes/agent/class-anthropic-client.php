@@ -26,11 +26,19 @@ class WP_Theme_Guard_Anthropic_Client {
 	/** @var callable */
 	private $tool_executor;
 
+	/** @var callable */
+	private $styles_reader;
+
+	/** @var callable */
+	private $styles_resetter;
+
 	public function __construct(
 		string $api_key,
 		string $model = 'claude-sonnet-4-20250514',
 		int $max_rounds = 5,
-		?callable $tool_executor = null
+		?callable $tool_executor = null,
+		?callable $styles_reader = null,
+		?callable $styles_resetter = null
 	) {
 		$this->api_key       = $api_key;
 		$this->model         = $model;
@@ -41,6 +49,35 @@ class WP_Theme_Guard_Anthropic_Client {
 				return new \WP_Error( 'ability_not_found', "Ability '{$ability}' not found." );
 			}
 			return $ability_obj->execute( $input );
+		};
+		$this->styles_reader = $styles_reader ?? static function (): array {
+			$post_id = WP_Theme_JSON_Resolver::get_user_global_styles_post_id();
+			$post    = get_post( $post_id );
+			if ( ! $post || empty( $post->post_content ) ) {
+				return array( 'styles' => array() );
+			}
+			$data = json_decode( $post->post_content, true );
+			return array( 'styles' => $data['styles'] ?? array() );
+		};
+		$this->styles_resetter = $styles_resetter ?? static function (): array {
+			$post_id      = WP_Theme_JSON_Resolver::get_user_global_styles_post_id();
+			$base_content = wp_json_encode( array(
+				'version'                     => WP_Theme_JSON::LATEST_SCHEMA,
+				'isGlobalStylesUserThemeJSON' => true,
+				'settings'                    => new \stdClass(),
+				'styles'                      => new \stdClass(),
+			) );
+
+			$result = wp_update_post( array(
+				'ID'           => $post_id,
+				'post_content' => $base_content,
+			), true );
+
+			if ( is_wp_error( $result ) ) {
+				return array( 'error' => $result->get_error_message() );
+			}
+
+			return array( 'reset' => true );
 		};
 	}
 
@@ -107,6 +144,22 @@ class WP_Theme_Guard_Anthropic_Client {
 					'required'   => array( 'content' ),
 				),
 			),
+			array(
+				'name'         => 'get_current_styles',
+				'description'  => "Fetch the site's currently saved user global styles. Call this to see what custom styles exist before making changes.",
+				'input_schema' => array(
+					'type'       => 'object',
+					'properties' => new \stdClass(),
+				),
+			),
+			array(
+				'name'         => 'reset_styles',
+				'description'  => 'Reset all user global styles to the base empty state. This immediately replaces the entire global styles custom post type with the base theme.json object: empty settings and empty styles. The reset takes effect right away.',
+				'input_schema' => array(
+					'type'       => 'object',
+					'properties' => new \stdClass(),
+				),
+			),
 		);
 	}
 
@@ -119,20 +172,26 @@ You are a WordPress theme style assistant. You generate and modify CSS styles th
 
 ## Workflow
 1. ALWAYS call get_constraints first to learn the theme.json structure, available presets, and design rules.
-2. Study the complete_example in the structure guide — it shows how the final styles object must be structured with blocks, elements, and global styles.
-3. Use the common_aliases mapping to translate user terms (e.g. "buttons" → core/button, "container" → core/group).
-4. Generate styles following the targeting hierarchy.
-5. Call validate_styles for EACH target separately:
-   - For a specific block: set blockName (e.g. blockName: "core/button") and pass only that block's style properties.
+2. Call get_current_styles to see what custom styles are already saved. Your changes will be merged into these existing styles when the user saves.
+3. Study the complete_example in the structure guide — it shows how the final styles object must be structured with blocks, elements, and global styles.
+4. Use the common_aliases mapping to translate user terms (e.g. "buttons" → core/button, "container" → core/group).
+5. Generate styles following the targeting hierarchy. Use declarative properties (color, typography, spacing, etc.) when possible.
+6. For styling needs not covered by declarative properties, use the css property — a raw CSS string that supports & nesting syntax. See the css_property section in get_constraints for syntax and examples.
+7. Call validate_styles for EACH target separately:
+   - For a specific block: set blockName (e.g. blockName: "core/button") and pass only that block's style properties (including css if used).
    - For global styles: omit blockName and pass the style properties directly.
-   - IMPORTANT: validate_styles takes flat style properties (color, typography, etc.), NOT the full tree with blocks/elements keys.
-6. If errors are returned, fix them and re-validate.
-7. If warnings suggest preset alternatives, prefer using presets for design system consistency.
+   - IMPORTANT: validate_styles takes flat style properties (color, typography, css, etc.), NOT the full tree with blocks/elements keys.
+8. If errors are returned, fix them and re-validate.
+9. If warnings suggest preset alternatives, prefer using presets for design system consistency.
+
+## Resetting Styles
+To clear all user customizations, call reset_styles. This immediately replaces the entire global styles custom post type with the base theme.json object (empty settings and empty styles). The reset takes effect right away — no Save step needed. All custom colors, typography, spacing, block styles, and settings will be removed.
 
 ## Completion
 When you have valid styles ready, present a summary to the user:
 - What was changed and which blocks/elements were targeted.
 - The final complete styles object (matching the complete_example structure from get_constraints).
+- Note that changes will be merged into the existing saved styles.
 - Ask the user to confirm before they save.
 PROMPT;
 	}
@@ -152,8 +211,10 @@ PROMPT;
 	public function chat( string $message, array $conversation = array() ): array {
 		$conversation[] = array( 'role' => 'user', 'content' => $message );
 
-		$rounds = 0;
-		$styles = array();
+		$rounds       = 0;
+		$styles       = array();
+		$styles_set   = false;
+		$styles_reset = false;
 
 		while ( $rounds < $this->max_rounds ) {
 			$rounds++;
@@ -165,6 +226,7 @@ PROMPT;
 					'conversation' => $conversation,
 					'error'        => $response->get_error_message(),
 					'styles'       => null,
+					'styles_reset' => false,
 					'rounds'       => $rounds,
 				);
 			}
@@ -184,19 +246,32 @@ PROMPT;
 					continue;
 				}
 
-				$result = $this->execute_tool( $block['name'], $block['input'] ?? array() );
+				$tool_name  = $block['name'];
+				$tool_input = $block['input'] ?? array();
 
-				if ( 'validate_styles' === $block['name'] && ! empty( $result['valid'] ) ) {
-					$fragment   = $block['input']['styles'] ?? array();
-					$block_name = $block['input']['blockName'] ?? '';
+				if ( 'reset_styles' === $tool_name ) {
+					$result       = ( $this->styles_resetter )();
+					$styles_set   = true;
+					$styles_reset = true;
+					$styles       = array();
+				} elseif ( 'get_current_styles' === $tool_name ) {
+					$result = ( $this->styles_reader )();
+				} else {
+					$result = $this->execute_tool( $tool_name, $tool_input );
 
-					if ( $block_name ) {
-						$styles['blocks'][ $block_name ] = array_merge(
-							$styles['blocks'][ $block_name ] ?? array(),
-							$fragment
-						);
-					} else {
-						$styles = array_merge( $styles, $fragment );
+					if ( 'validate_styles' === $tool_name && ! empty( $result['valid'] ) ) {
+						$styles_set = true;
+						$fragment   = $tool_input['styles'] ?? array();
+						$block_name = $tool_input['blockName'] ?? '';
+
+						if ( $block_name ) {
+							$styles['blocks'][ $block_name ] = array_merge(
+								$styles['blocks'][ $block_name ] ?? array(),
+								$fragment
+							);
+						} else {
+							$styles = array_merge( $styles, $fragment );
+						}
 					}
 				}
 
@@ -212,7 +287,8 @@ PROMPT;
 
 		return array(
 			'conversation' => $conversation,
-			'styles'       => ! empty( $styles ) ? $styles : null,
+			'styles'       => $styles_set ? $styles : null,
+			'styles_reset' => $styles_reset,
 			'rounds'       => $rounds,
 		);
 	}
