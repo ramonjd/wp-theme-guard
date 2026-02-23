@@ -76,3 +76,26 @@ The MCP adapter exposes abilities through three meta-tools:
 | `mcp-adapter-execute-ability` | Execute an ability with parameters |
 
 Call abilities via `mcp-adapter-execute-ability` with `ability_name` and `parameters`.
+
+## Test Agent (Admin Page)
+
+A built-in chat interface for testing wp-theme-guard abilities with an AI agent. Lives under **Tools > Theme Guard Agent** in wp-admin.
+
+### Setup
+
+1. Add your Anthropic API key to wp-env:
+
+```bash
+npx wp-env run cli -- wp config set WP_THEME_GUARD_API_KEY 'sk-ant-your-key-here' --type=constant
+```
+
+2. Visit `http://localhost:8890/wp-admin/tools.php?page=wp-theme-guard-agent`
+
+The agent calls `get_constraints` to learn your theme, generates styles, validates them with `validate_styles`, and self-corrects on errors. Valid styles can be saved as global styles with one click.
+
+### Architecture
+
+- Agent code is isolated in `includes/agent/` and `assets/` — separate from core validation tools.
+- The admin page always loads (so the setup notice is visible), but the REST endpoint and Anthropic client only load when `WP_THEME_GUARD_API_KEY` is defined.
+- All Anthropic API calls happen server-side. The API key is never sent to the browser.
+- Saving uses the core `/wp/v2/global-styles/{id}` REST endpoint via `wp.apiFetch`. WordPress creates a revision automatically.
