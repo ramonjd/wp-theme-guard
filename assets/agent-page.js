@@ -4,7 +4,6 @@
 	var config = window.wpThemeGuardAgent;
 	var conversation = [];
 	var lastStyles = null;
-	var renderedCount = 0;
 
 	var els = {
 		conversation: document.getElementById( 'agent-conversation' ),
@@ -47,25 +46,14 @@
 		var loadingEl = addMessage( 'assistant', 'Thinking\u2026' );
 		loadingEl.classList.add( 'agent-loading' );
 
-		fetch( config.restUrl + 'chat', {
+		wp.apiFetch( {
+			path: 'wp-theme-guard/v1/agent/chat',
 			method: 'POST',
-			headers: {
-				'Content-Type': 'application/json',
-				'X-WP-Nonce': config.nonce,
-			},
-			body: JSON.stringify( {
+			data: {
 				message: message,
 				conversation: conversation,
-			} ),
+			},
 		} )
-			.then( function ( response ) {
-				return response.json().then( function ( data ) {
-					if ( ! response.ok ) {
-						throw new Error( data.message || 'Request failed' );
-					}
-					return data;
-				} );
-			} )
 			.then( function ( data ) {
 				conversation = data.conversation;
 				lastStyles = data.styles;
@@ -212,11 +200,14 @@
 				} );
 			} )
 			.then( function ( revisions ) {
+				els.saveStatus.textContent = '';
 				if ( revisions.length ) {
-					els.saveStatus.innerHTML =
-						'Saved! <a href="' +
-						config.adminUrl + 'revision.php?revision=' + revisions[ 0 ].id +
-						'">View revision</a>';
+					var savedText = document.createTextNode( 'Saved! ' );
+					var link = document.createElement( 'a' );
+					link.href = config.adminUrl + 'revision.php?revision=' + revisions[ 0 ].id;
+					link.textContent = 'View revision';
+					els.saveStatus.appendChild( savedText );
+					els.saveStatus.appendChild( link );
 				} else {
 					els.saveStatus.textContent = 'Saved!';
 				}
