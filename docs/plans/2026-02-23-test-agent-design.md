@@ -39,7 +39,7 @@ if ( defined( 'WP_THEME_GUARD_API_KEY' ) && is_admin() ) {
 - Stored as `WP_THEME_GUARD_API_KEY` constant in `wp-config.php`.
 - Never sent to the browser. All Anthropic API calls happen server-side.
 
-### 3. REST Endpoints
+### 3. REST Endpoint
 
 **`POST /wp-theme-guard/v1/agent/chat`**
 - Input: `{ "message": "string", "conversation": [...] }`
@@ -47,12 +47,6 @@ if ( defined( 'WP_THEME_GUARD_API_KEY' ) && is_admin() ) {
 - Executes tool calls via `wp_execute_ability()`.
 - Loops up to 5 rounds of tool use.
 - Returns: full conversation trace including tool calls and results.
-
-**`POST /wp-theme-guard/v1/agent/save-styles`**
-- Input: `{ "styles": { ... } }`
-- Writes styles to `wp_global_styles` CPT via core functions.
-- WordPress creates a revision automatically.
-- Returns: success status.
 
 ### 4. Tool Definitions
 
@@ -77,7 +71,9 @@ Derived from existing `CLAUDE.md` content.
 ### 6. Save as Global Styles
 
 - Button appears after the agent produces a styles object.
-- Writes to `wp_global_styles` CPT (creates revision).
+- Uses `wp.apiFetch` to save via the core `/wp/v2/global-styles/{id}` REST endpoint — no custom save endpoint needed.
+- Deep-merges agent styles with existing global styles to preserve non-overlapping values.
+- WordPress creates a revision automatically.
 - Link to revisions page so users can restore previous state.
 
 ## Frontend UX
@@ -115,10 +111,12 @@ User prompt → JS POST /agent/chat
   → Return conversation trace to JS
   → JS renders messages, tool calls, results
 
-"Save as Global Styles" click → JS POST /agent/save-styles
-  → PHP: write to wp_global_styles CPT
-  → Revision created automatically
-  → JS: success confirmation + revisions link
+"Save as Global Styles" click
+  → JS: wp.apiFetch GET /wp/v2/global-styles/{id} (current styles)
+  → JS: deep-merge agent styles with existing
+  → JS: wp.apiFetch POST /wp/v2/global-styles/{id} (merged styles)
+  → WordPress creates revision automatically
+  → JS: fetch latest revision, show confirmation + revisions link
 ```
 
 ## File Structure
@@ -131,7 +129,7 @@ includes/
   class-schema-provider.php      # Core — unchanged
   agent/                         # Test harness
     class-agent-page.php         # Admin page registration + HTML
-    class-agent-rest.php         # REST endpoints
+    class-agent-rest.php         # Chat REST endpoint (Anthropic proxy)
     class-anthropic-client.php   # Anthropic API client + tool loop
 assets/
   agent-page.js                  # Conversation UI

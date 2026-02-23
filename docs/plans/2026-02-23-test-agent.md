@@ -4,7 +4,7 @@
 
 **Goal:** Build a standalone WordPress admin page that lets users chat with an AI agent to generate validated theme styles, then save them as global styles.
 
-**Architecture:** Server-side agentic loop. Browser sends prompts to a REST endpoint, PHP calls Anthropic Messages API with tool definitions mapped to wp-theme-guard abilities, executes tools via `wp_execute_ability()`, loops until done or hits 5-round cap, returns full conversation trace. Separate endpoint writes validated styles to `wp_global_styles` CPT. Agent code is isolated in `includes/agent/` and only loads when `WP_THEME_GUARD_API_KEY` constant is defined — zero overhead on production sites.
+**Architecture:** Server-side agentic loop. Browser sends prompts to a REST endpoint, PHP calls Anthropic Messages API with tool definitions mapped to wp-theme-guard abilities, executes tools via `wp_execute_ability()`, loops until done or hits 5-round cap, returns full conversation trace. Saving uses the core `/wp/v2/global-styles/{id}` REST endpoint via `wp.apiFetch` — no custom save endpoint needed. Agent code is isolated in `includes/agent/` and only loads when `WP_THEME_GUARD_API_KEY` constant is defined — zero overhead on production sites.
 
 **Tech Stack:** PHP 8.1, WordPress REST API, Anthropic Messages API (`claude-sonnet-4-20250514`), vanilla JS (no build step)
 
@@ -676,11 +676,6 @@ class Test_Agent_REST extends WP_UnitTestCase {
 		$this->assertArrayHasKey( '/wp-theme-guard/v1/agent/chat', $routes );
 	}
 
-	public function test_save_styles_route_is_registered(): void {
-		$routes = $this->server->get_routes();
-		$this->assertArrayHasKey( '/wp-theme-guard/v1/agent/save-styles', $routes );
-	}
-
 	public function test_chat_requires_edit_theme_options(): void {
 		wp_set_current_user( 0 );
 
@@ -715,7 +710,7 @@ Expected: FAIL — class `WP_Theme_Guard_Agent_REST` not found.
 
 **Step 3: Write the implementation**
 
-Create `includes/agent/class-agent-rest.php`:
+Create `includes/agent/class-agent-rest.php`. Only the chat endpoint — saving uses the core `/wp/v2/global-styles/{id}` endpoint via `wp.apiFetch` on the client side.
 
 ```php
 <?php
@@ -723,7 +718,7 @@ Create `includes/agent/class-agent-rest.php`:
 declare( strict_types = 1 );
 
 /**
- * REST API endpoints for the test agent.
+ * REST API endpoint for the test agent chat.
  */
 class WP_Theme_Guard_Agent_REST {
 
@@ -746,18 +741,6 @@ class WP_Theme_Guard_Agent_REST {
 					'required' => false,
 					'type'     => 'array',
 					'default'  => array(),
-				),
-			),
-		) );
-
-		register_rest_route( 'wp-theme-guard/v1', '/agent/save-styles', array(
-			'methods'             => 'POST',
-			'callback'            => array( __CLASS__, 'handle_save_styles' ),
-			'permission_callback' => array( __CLASS__, 'check_permissions' ),
-			'args'                => array(
-				'styles' => array(
-					'required' => true,
-					'type'     => 'object',
 				),
 			),
 		) );
@@ -796,49 +779,6 @@ class WP_Theme_Guard_Agent_REST {
 
 		return new WP_REST_Response( $result, 200 );
 	}
-
-	/**
-	 * Handle save-styles requests: write to wp_global_styles CPT.
-	 */
-	public static function handle_save_styles( WP_REST_Request $request ): WP_REST_Response|WP_Error {
-		$styles = $request->get_param( 'styles' );
-
-		$post_id = WP_Theme_JSON_Resolver::get_user_global_styles_post_id();
-		$post    = get_post( $post_id );
-
-		if ( ! $post ) {
-			return new WP_Error(
-				'no_global_styles',
-				'Could not find global styles post.',
-				array( 'status' => 500 )
-			);
-		}
-
-		$existing              = json_decode( $post->post_content, true ) ?: array();
-		$existing['version']   = $existing['version'] ?? WP_Theme_JSON::LATEST_SCHEMA;
-		$existing['styles']    = array_replace_recursive( $existing['styles'] ?? array(), $styles );
-
-		$updated = wp_update_post( array(
-			'ID'           => $post_id,
-			'post_content' => wp_json_encode( $existing ),
-		), true );
-
-		if ( is_wp_error( $updated ) ) {
-			return $updated;
-		}
-
-		$revisions    = wp_get_post_revisions( $post_id, array( 'numberposts' => 1 ) );
-		$revision_url = '';
-		if ( $revisions ) {
-			$revision     = reset( $revisions );
-			$revision_url = admin_url( "revision.php?revision={$revision->ID}" );
-		}
-
-		return new WP_REST_Response( array(
-			'success'      => true,
-			'revision_url' => $revision_url,
-		), 200 );
-	}
 }
 ```
 
@@ -846,13 +786,13 @@ class WP_Theme_Guard_Agent_REST {
 
 Run: `npx wp-env run tests-cli --env-cwd=wp-content/plugins/nairobi vendor/bin/phpunit --filter Test_Agent_REST`
 
-Expected: 4 tests, OK.
+Expected: 3 tests, OK.
 
 **Step 5: Commit**
 
 ```bash
 git add includes/agent/class-agent-rest.php tests/Test_Agent_REST.php
-git commit -m "feat(agent): add chat and save-styles REST endpoints"
+git commit -m "feat(agent): add chat REST endpoint"
 ```
 
 ---
@@ -908,14 +848,16 @@ class WP_Theme_Guard_Agent_Page {
 		wp_enqueue_script(
 			'wp-theme-guard-agent',
 			$plugin_url . '/assets/agent-page.js',
-			array(),
+			array( 'wp-api-fetch' ),
 			WP_THEME_GUARD_VERSION,
 			true
 		);
 		wp_localize_script( 'wp-theme-guard-agent', 'wpThemeGuardAgent', array(
-			'restUrl'   => rest_url( 'wp-theme-guard/v1/agent/' ),
-			'nonce'     => wp_create_nonce( 'wp_rest' ),
-			'hasApiKey' => defined( 'WP_THEME_GUARD_API_KEY' ),
+			'restUrl'        => rest_url( 'wp-theme-guard/v1/agent/' ),
+			'nonce'          => wp_create_nonce( 'wp_rest' ),
+			'hasApiKey'      => defined( 'WP_THEME_GUARD_API_KEY' ),
+			'globalStylesId' => WP_Theme_JSON_Resolver::get_user_global_styles_post_id(),
+			'adminUrl'       => admin_url(),
 		) );
 	}
 
@@ -1217,6 +1159,24 @@ Create `assets/agent-page.js`:
 		els.conversation.scrollTop = els.conversation.scrollHeight;
 	}
 
+	function deepMerge( target, source ) {
+		var result = Object.assign( {}, target );
+		for ( var key in source ) {
+			if ( ! source.hasOwnProperty( key ) ) {
+				continue;
+			}
+			if (
+				typeof source[ key ] === 'object' && source[ key ] !== null && ! Array.isArray( source[ key ] ) &&
+				typeof result[ key ] === 'object' && result[ key ] !== null && ! Array.isArray( result[ key ] )
+			) {
+				result[ key ] = deepMerge( result[ key ], source[ key ] );
+			} else {
+				result[ key ] = source[ key ];
+			}
+		}
+		return result;
+	}
+
 	function saveStyles() {
 		if ( ! lastStyles ) {
 			return;
@@ -1225,31 +1185,36 @@ Create `assets/agent-page.js`:
 		els.save.disabled = true;
 		els.saveStatus.textContent = 'Saving\u2026';
 
-		fetch( config.restUrl + 'save-styles', {
-			method: 'POST',
-			headers: {
-				'Content-Type': 'application/json',
-				'X-WP-Nonce': config.nonce,
-			},
-			body: JSON.stringify( { styles: lastStyles } ),
-		} )
-			.then( function ( response ) {
-				return response.json().then( function ( data ) {
-					if ( ! response.ok ) {
-						throw new Error( data.message || 'Save failed' );
-					}
-					return data;
+		var gsPath = '/wp/v2/global-styles/' + config.globalStylesId;
+
+		// GET current styles, deep-merge, POST back via core REST endpoint.
+		wp.apiFetch( { path: gsPath } )
+			.then( function ( current ) {
+				var merged = deepMerge( current.styles || {}, lastStyles );
+				return wp.apiFetch( {
+					path: gsPath,
+					method: 'POST',
+					data: { styles: merged },
 				} );
 			} )
-			.then( function ( data ) {
-				els.saveStatus.innerHTML =
-					'Saved! ' +
-					( data.revision_url
-						? '<a href="' + data.revision_url + '">View revision</a>'
-						: '' );
+			.then( function () {
+				// Fetch latest revision for the link.
+				return wp.apiFetch( {
+					path: gsPath + '/revisions?per_page=1',
+				} );
+			} )
+			.then( function ( revisions ) {
+				if ( revisions.length ) {
+					els.saveStatus.innerHTML =
+						'Saved! <a href="' +
+						config.adminUrl + 'revision.php?revision=' + revisions[ 0 ].id +
+						'">View revision</a>';
+				} else {
+					els.saveStatus.textContent = 'Saved!';
+				}
 			} )
 			.catch( function ( err ) {
-				els.saveStatus.textContent = 'Error: ' + err.message;
+				els.saveStatus.textContent = 'Error: ' + ( err.message || 'Save failed' );
 			} )
 			.finally( function () {
 				els.save.disabled = false;
@@ -1426,7 +1391,7 @@ git commit -m "feat(agent): add admin page styles"
    - Send a test prompt like "Make my headings use the primary color"
    - Conversation renders with tool calls (collapsible)
    - "Save as Global Styles" button appears after valid styles are generated
-   - Saving writes to global styles and shows revision link
+   - Saving writes to global styles via core REST API and shows revision link
 
 **Step 5: Final commit with any fixes from smoke test**
 
