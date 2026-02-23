@@ -2,9 +2,9 @@ name: PHPUnit
 
 on:
   push:
-    branches: [main]
+    branches: [trunk]
   pull_request:
-    branches: [main]
+    branches: [trunk]
 
 jobs:
   test:
@@ -20,10 +20,10 @@ jobs:
 
       - run: npm ci
 
-      - name: Install Composer dependencies inside wp-env container
+      - name: Start wp-env and install Composer dependencies
         run: |
           npx wp-env start
-          npx wp-env run tests-cli --env-cwd=wp-content/plugins/nairobi composer install
+          npx wp-env run tests-cli --env-cwd="wp-content/plugins/${{ github.event.repository.name }}" composer install
 
       - name: Run PHPUnit
-        run: npx wp-env run tests-cli --env-cwd=wp-content/plugins/nairobi vendor/bin/phpunit
+        run: npx wp-env run tests-cli --env-cwd="wp-content/plugins/${{ github.event.repository.name }}" vendor/bin/phpunit
