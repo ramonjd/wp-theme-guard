@@ -338,6 +338,70 @@ class Test_Style_Validator extends WP_UnitTestCase {
 		$this->assertEmpty( $suggestions );
 	}
 
+	/**
+	 * Layer 0: schema-structure
+	 */
+	public function test_blocks_key_in_fragment_produces_schema_error() {
+		$result = WP_Theme_Guard_Style_Validator::execute( array(
+			'styles' => array(
+				'blocks' => array(
+					'core/group' => array(
+						'css' => '& .inner { display: grid; }',
+					),
+				),
+			),
+		) );
+
+		$this->assertFalse( $result['valid'] );
+		$this->assertCount( 1, $result['errors'] );
+		$this->assertSame( 'schema-structure', $result['errors'][0]['layer'] );
+		$this->assertStringContainsString( 'structural key', $result['errors'][0]['message'] );
+	}
+
+	public function test_elements_key_in_fragment_produces_schema_error() {
+		$result = WP_Theme_Guard_Style_Validator::execute( array(
+			'styles' => array(
+				'elements' => array(
+					'button' => array(
+						'color' => array( 'text' => '#fff' ),
+					),
+				),
+			),
+		) );
+
+		$this->assertFalse( $result['valid'] );
+		$this->assertCount( 1, $result['errors'] );
+		$this->assertSame( 'schema-structure', $result['errors'][0]['layer'] );
+		$this->assertStringContainsString( 'structural key', $result['errors'][0]['message'] );
+	}
+
+	public function test_both_structural_keys_produce_two_errors() {
+		$result = WP_Theme_Guard_Style_Validator::execute( array(
+			'styles' => array(
+				'blocks'   => array( 'core/group' => array( 'css' => '& { }' ) ),
+				'elements' => array( 'button' => array( 'color' => array( 'text' => '#fff' ) ) ),
+			),
+		) );
+
+		$this->assertFalse( $result['valid'] );
+		$this->assertCount( 2, $result['errors'] );
+	}
+
+	public function test_flat_css_property_passes_without_schema_error() {
+		$result = WP_Theme_Guard_Style_Validator::execute( array(
+			'styles' => array(
+				'css' => '.wp-site-blocks { scroll-margin-top: 100px; }',
+			),
+		) );
+
+		$schema_errors = array_filter(
+			$result['errors'],
+			fn( $e ) => 'schema-structure' === $e['layer']
+		);
+		$this->assertEmpty( $schema_errors );
+		$this->assertTrue( $result['valid'] );
+	}
+
 	public function test_matching_font_size_suggests_preset() {
 		$result = WP_Theme_Guard_Style_Validator::execute( array(
 			'styles' => array(

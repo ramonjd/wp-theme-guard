@@ -51,11 +51,41 @@ class WP_Theme_Guard_Style_Validator {
 		'border.left.width'         => array( '__experimentalBorder', 'width' ),
 	);
 
+	/**
+	 * Structural keys that belong in the styles tree but are not style properties.
+	 * These must never appear in a validate_styles fragment — the agent should
+	 * validate each target separately using the blockName parameter instead.
+	 */
+	private const STRUCTURAL_KEYS = array( 'blocks', 'elements' );
+
 	public static function execute( array $input ): array {
 		$styles     = $input['styles'] ?? array();
 		$block_name = $input['blockName'] ?? '';
 		$errors     = array();
 		$warnings   = array();
+
+		// Layer 0: Reject structural keys — enforce flat fragments.
+		foreach ( self::STRUCTURAL_KEYS as $key ) {
+			if ( array_key_exists( $key, $styles ) ) {
+				$errors[] = array(
+					'property' => $key,
+					'value'    => '',
+					'message'  => sprintf(
+						'"%s" is a structural key, not a style property. Validate each target separately: use the blockName parameter for block styles, and omit blockName for global styles.',
+						$key
+					),
+					'layer'    => 'schema-structure',
+				);
+			}
+		}
+
+		if ( ! empty( $errors ) ) {
+			return array(
+				'valid'    => false,
+				'errors'   => array_values( $errors ),
+				'warnings' => array(),
+			);
+		}
 
 		// Layer 1: Normalize — flatten styles into (path, value) pairs.
 		$pairs = self::normalize( $styles );

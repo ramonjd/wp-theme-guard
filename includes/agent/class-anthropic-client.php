@@ -264,6 +264,9 @@ PROMPT;
 						$fragment   = $tool_input['styles'] ?? array();
 						$block_name = $tool_input['blockName'] ?? '';
 
+						// Strip structural keys — the accumulator handles placement.
+						unset( $fragment['blocks'], $fragment['elements'] );
+
 						if ( $block_name ) {
 							$styles['blocks'][ $block_name ] = array_merge(
 								$styles['blocks'][ $block_name ] ?? array(),
